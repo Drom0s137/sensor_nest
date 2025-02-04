@@ -53,21 +53,22 @@ def main():
     print("ZeroMQ publisher bound to tcp://*:5555")
     
     # Load the ONNX model
-    onnx_model = "model_zoo/ssd_mobilenet_v1_10.onnx"
-    net = cv2.dnn.readNetFromONNX(onnx_model)
-    if net.empty():
-        print("Error: Could not load the network from the ONNX model file:", onnx_model)
-        sys.exit(1)
+    # onnx_model = "model_zoo/ssd_mobilenet_v1_10.onnx"
+    # net = cv2.dnn.readNetFromONNX(onnx_model)
+    # if net.empty():
+    #     print("Error: Could not load the network from the ONNX model file:", onnx_model)
+    #     sys.exit(1)
+    # Load the Caffe model
+    prototxt_path = "model_zoo/MobileNetSSD_deploy.prototxt"
+    model_path = "model_zoo/MobileNetSSD_deploy.caffemodel"
+    net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
     
-    # Set preferable backend/target.
-    # If TensorRT is available, use it; otherwise fall back to CUDA.
-    try:
-        net.setPreferableBackend(cv2.dnn.DNN_BACKEND_TENSORRT)
-        net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA)
-    except Exception as e:
-        # If TensorRT isn't available, fall back:
-        net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
-        net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
+    if net.empty():
+        print("Error: Could not load the network from the Caffe model file:", model_path)
+        sys.exit(1)
+
+    net.setPreferableBackend(cv2.dnn.DNN_BACKEND_CUDA)
+    net.setPreferableTarget(cv2.dnn.DNN_TARGET_CUDA_FP16)
     
     # Define class labels.
     labels = ["background", "aeroplane", "bicycle", "bird", "boat",
@@ -89,7 +90,7 @@ def main():
         # Create blob; note many ONNX SSD models expect a 300x300 input.
         blob = cv2.dnn.blobFromImage(frame, 0.007843, (300, 300), (127.5, 127.5, 127.5), swapRB=False, crop=False)
         # If your model requires a specific input node name, set it here (e.g., "input")
-        net.setInput(blob, "input")
+        net.setInput(blob)
         detections = net.forward()
 
         # The detections shape is typically [1, 1, N, 7]. Reshape to [N, 7]

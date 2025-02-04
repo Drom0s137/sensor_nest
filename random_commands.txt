@@ -14,4 +14,5 @@ pip install --upgrade pip
 python3 -m pip install <package>
 python3 -m pip install numpy
 
-/home/livesens/.local/lib/python3.8/site-packages
+#first apt upgrade error fix:
+https://forums.developer.nvidia.com/t/solution-dpkg-error-processing-package-nvidia-l4t-bootloader-configure/208627
