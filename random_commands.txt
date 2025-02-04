@@ -1,0 +1,17 @@
+#to add new to python3
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+#to check python3
+sudo update-alternatives --config python3
+#to check python3 usage 
+python3 --version
+
+
+#create venv
+python3.8 -m venv myenv
+source myenv/bin/activate
+pip install --upgrade pip
+
+python3 -m pip install <package>
+python3 -m pip install numpy
+
+/home/livesens/.local/lib/python3.8/site-packages

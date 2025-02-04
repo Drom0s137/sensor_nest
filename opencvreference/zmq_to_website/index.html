@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Live Detection Stream</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f2f2f2; }
+    #videoStream { border: 2px solid #333; }
+    #detectionData { background: #fff; border: 1px solid #ccc; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Live Detection Stream</h1>
+  <img id="videoStream" width="640" height="480" alt="Video Stream">
+  <h2>Detection Data</h2>
+  <pre id="detectionData">Waiting for data...</pre>
+  
+  <script>
+    // Connect to the WebSocket server on port 8080.
+    var ws = new WebSocket("ws://localhost:8080/ws");
+    
+    ws.onopen = function() {
+      console.log("WebSocket connection established.");
+    };
+    
+    ws.onmessage = function(event) {
+      // Parse the received JSON.
+      try {
+        var data = JSON.parse(event.data);
+        // Update the image with the base64-encoded frame.
+        if(data.image) {
+          document.getElementById("videoStream").src = "data:image/jpeg;base64," + data.image;
+        }
+        // Pretty-print detection data.
+        document.getElementById("detectionData").textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        console.error("Error parsing JSON:", e);
+      }
+    };
+    
+    ws.onerror = function(error) {
+      console.error("WebSocket error:", error);
+    };
+    
+    ws.onclose = function() {
+      console.log("WebSocket connection closed.");
+    };
+  </script>
+</body>
+</html>
