@@ -16,3 +16,6 @@ python3 -m pip install numpy
 
 #first apt upgrade error fix:
 https://forums.developer.nvidia.com/t/solution-dpkg-error-processing-package-nvidia-l4t-bootloader-configure/208627
+
+#shutdown
+sudo shutdown -h now

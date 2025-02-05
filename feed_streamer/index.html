@@ -2,46 +2,76 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Live Detection Stream</title>
+  <title>Live Detection & LiDAR Data</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { font-family: Arial, sans-serif; background: #f2f2f2; }
     #videoStream { border: 2px solid #333; }
-    #detectionData { background: #fff; border: 1px solid #ccc; padding: 10px; }
+    #detectionData, #lidarData { background: #fff; border: 1px solid #ccc; padding: 10px; }
+    canvas { max-width: 600px; }
   </style>
 </head>
 <body>
-  <h1>Live Detection Stream</h1>
+  <h1>Live Detection & LiDAR Data</h1>
+
+  <h2>Camera Detection</h2>
   <img id="videoStream" width="640" height="480" alt="Video Stream">
-  <h2>Detection Data</h2>
-  <pre id="detectionData">Waiting for data...</pre>
+
+  <h2>LiDAR Data</h2>
+  <canvas id="lidarChart"></canvas>
   
+  <h3>Detection Data</h3>
+  <pre id="detectionData">Waiting for detection data...</pre>
+
   <script>
-    // Connect to the WebSocket server on port 8080.
     var ws = new WebSocket("ws://localhost:8080/ws");
-    
-    ws.onopen = function() {
-      console.log("WebSocket connection established.");
-    };
-    
+
+    var ctx = document.getElementById("lidarChart").getContext("2d");
+
+    var lidarChart = new Chart(ctx, {
+      type: 'scatter',
+      data: { datasets: [{ label: 'LiDAR Points', data: [], borderColor: 'blue', showLine: false }] },
+      options: {
+        scales: {
+          x: { type: 'linear', position: 'bottom', min: -10, max: 10 },
+          y: { type: 'linear', position: 'left', min: -10, max: 10 }
+        }
+      }
+    });
+
     ws.onmessage = function(event) {
-      // Parse the received JSON.
       try {
         var data = JSON.parse(event.data);
-        // Update the image with the base64-encoded frame.
-        if(data.image) {
-          document.getElementById("videoStream").src = "data:image/jpeg;base64," + data.image;
+
+        // Update Camera Stream
+        if (data.detection && data.detection.image) {
+          document.getElementById("videoStream").src = "data:image/jpeg;base64," + data.detection.image;
         }
-        // Pretty-print detection data.
-        document.getElementById("detectionData").textContent = JSON.stringify(data, null, 2);
+
+        // Update Detection Data
+        document.getElementById("detectionData").textContent = JSON.stringify(data.detection.detections, null, 2);
+
+        // Convert LiDAR polar (angle, range) to Cartesian (X, Y)
+        if (data.lidar && data.lidar.points) {
+          var lidarPoints = data.lidar.points.map(p => {
+            var angleRad = p.angle;  // Assuming the angle is already in radians
+            return { x: p.range * Math.cos(angleRad), y: p.range * Math.sin(angleRad) };
+          });
+
+          // Update Chart Data
+          lidarChart.data.datasets[0].data = lidarPoints;
+          lidarChart.update();
+        }
+        
       } catch (e) {
         console.error("Error parsing JSON:", e);
       }
     };
-    
+
     ws.onerror = function(error) {
       console.error("WebSocket error:", error);
     };
-    
+
     ws.onclose = function() {
       console.log("WebSocket connection closed.");
     };
