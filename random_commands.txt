@@ -19,3 +19,6 @@ https://forums.developer.nvidia.com/t/solution-dpkg-error-processing-package-nvi
 
 #shutdown
 sudo shutdown -h now
+
+#set usb port permission
+sudo chmod 666 /dev/ttyUSB0

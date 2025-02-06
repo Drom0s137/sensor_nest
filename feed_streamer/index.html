@@ -2,39 +2,127 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Live Detection & LiDAR Data</title>
+  <title>Live Detection, LiDAR & IMU</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: Arial, sans-serif; background: #f2f2f2; }
-    #videoStream { border: 2px solid #333; }
-    #detectionData, #lidarData { background: #fff; border: 1px solid #ccc; padding: 10px; }
-    canvas { max-width: 600px; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      margin: 0;
+      padding: 20px;
+    }
+    h1, h2, h3 {
+      margin: 10px 0;
+    }
+    #videoStream {
+      border: 2px solid #333;
+    }
+    #detectionData,
+    #lidarData,
+    #imuData {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 10px;
+      white-space: pre-wrap;
+      margin: 10px 0;
+    }
+    canvas {
+      max-width: 600px;
+    }
+    /* Simple container for the IMU cube */
+    #imuContainer {
+      margin: 20px 0;
+      perspective: 600px; /* Gives a 3D perspective */
+      width: 200px;
+      height: 200px;
+      position: relative;
+    }
+    /* The cube itself */
+    #imuCube {
+      width: 100px;
+      height: 100px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform-style: preserve-3d;
+      transform: translate(-50%, -50%);
+      transition: transform 0.1s linear; /* Optional smoothing */
+    }
+    /* Each face of the cube */
+    .face {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border: 2px solid #333;
+      box-sizing: border-box;
+      background-color: rgba(173, 216, 230, 0.7); /* LightBlue with some transparency */
+    }
+    .front  { transform: translateZ(50px); }
+    .back   { transform: translateZ(-50px) rotateY(180deg); }
+    .right  { transform: rotateY(90deg) translateZ(50px); }
+    .left   { transform: rotateY(-90deg) translateZ(50px); }
+    .top    { transform: rotateX(90deg) translateZ(50px); }
+    .bottom { transform: rotateX(-90deg) translateZ(50px); }
   </style>
 </head>
 <body>
-  <h1>Live Detection & LiDAR Data</h1>
+  <h1>Live Detection, LiDAR & IMU</h1>
 
+  <!-- CAMERA DETECTION SECTION -->
   <h2>Camera Detection</h2>
   <img id="videoStream" width="640" height="480" alt="Video Stream">
 
+  <!-- LIDAR SECTION -->
   <h2>LiDAR Data</h2>
   <canvas id="lidarChart"></canvas>
-  
+
+  <!-- IMU SECTION -->
+  <h2>IMU Orientation</h2>
+  <!-- A container that will hold a rotating cube and textual IMU info -->
+  <div id="imuContainer">
+    <div id="imuCube">
+      <!-- Simple 6 faces for the cube -->
+      <div class="face front">FRONT</div>
+      <div class="face back">BACK</div>
+      <div class="face right">RIGHT</div>
+      <div class="face left">LEFT</div>
+      <div class="face top">TOP</div>
+      <div class="face bottom">BOTTOM</div>
+    </div>
+  </div>
+  <pre id="imuData">Waiting for IMU data...</pre>
   <h3>Detection Data</h3>
   <pre id="detectionData">Waiting for detection data...</pre>
 
   <script>
     var ws = new WebSocket("ws://localhost:8080/ws");
 
+    // ---- LIDAR Chart Setup ----
     var ctx = document.getElementById("lidarChart").getContext("2d");
-
     var lidarChart = new Chart(ctx, {
       type: 'scatter',
-      data: { datasets: [{ label: 'LiDAR Points', data: [], borderColor: 'blue', showLine: false }] },
+      data: {
+        datasets: [{
+          label: 'LiDAR Points',
+          data: [],
+          borderColor: 'blue',
+          showLine: false
+        }]
+      },
       options: {
         scales: {
-          x: { type: 'linear', position: 'bottom', min: -10, max: 10 },
-          y: { type: 'linear', position: 'left', min: -10, max: 10 }
+          x: {
+            type: 'linear',
+            position: 'bottom',
+            min: -10,
+            max: 10
+          },
+          y: {
+            type: 'linear',
+            position: 'left',
+            min: -10,
+            max: 10
+          }
         }
       }
     });
@@ -43,26 +131,54 @@
       try {
         var data = JSON.parse(event.data);
 
-        // Update Camera Stream
+        // ---- 1) Update Camera Stream ----
         if (data.detection && data.detection.image) {
           document.getElementById("videoStream").src = "data:image/jpeg;base64," + data.detection.image;
         }
 
-        // Update Detection Data
-        document.getElementById("detectionData").textContent = JSON.stringify(data.detection.detections, null, 2);
+        // ---- 2) Update Detection Data ----
+        if (data.detection && data.detection.detections) {
+          document.getElementById("detectionData").textContent = JSON.stringify(
+            data.detection.detections,
+            null,
+            2
+          );
+        }
 
-        // Convert LiDAR polar (angle, range) to Cartesian (X, Y)
+        // ---- 3) Update LiDAR Chart ----
         if (data.lidar && data.lidar.points) {
+          // Convert LiDAR polar (angle, range) to Cartesian (X, Y)
           var lidarPoints = data.lidar.points.map(p => {
-            var angleRad = p.angle;  // Assuming the angle is already in radians
-            return { x: p.range * Math.cos(angleRad), y: p.range * Math.sin(angleRad) };
+            var angleRad = p.angle; // Assuming angle is already in radians
+            return {
+              x: p.range * Math.cos(angleRad),
+              y: p.range * Math.sin(angleRad)
+            };
           });
-
-          // Update Chart Data
           lidarChart.data.datasets[0].data = lidarPoints;
           lidarChart.update();
         }
-        
+
+        // ---- 4) Update IMU Orientation ----
+        if (data.imu) {
+          // Show numeric data
+          document.getElementById("imuData").textContent = JSON.stringify(data.imu, null, 2);
+
+          // Here we assume data.imu.roll, data.imu.pitch, data.imu.yaw are in degrees
+          var roll = data.imu.roll || 0;   // rotateX
+          var pitch = data.imu.pitch || 0; // rotateY
+          var yaw = data.imu.yaw || 0;     // rotateZ
+
+          // Update the CSS transform to rotate the cube
+          // Convert pitch to rotateX or rotateY as needed based on how you'd like to interpret
+          // but typically: roll -> rotateX, pitch -> rotateY, yaw -> rotateZ
+          // Adjust sign if the orientation is flipped in your system
+          document.getElementById("imuCube").style.transform =
+            "translate(-50%, -50%) " +
+            "rotateX(" + roll + "deg) " +
+            "rotateY(" + pitch + "deg) " +
+            "rotateZ(" + yaw + "deg)";
+        }
       } catch (e) {
         console.error("Error parsing JSON:", e);
       }

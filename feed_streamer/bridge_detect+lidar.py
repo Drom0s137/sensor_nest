@@ -10,11 +10,10 @@ import json
 zmq_context = zmq.asyncio.Context()
 
 class ZMQSubscriber:
-    def __init__(self, address, name):
+    def __init__(self, address):
         self.socket = zmq_context.socket(zmq.SUB)
         self.socket.connect(address)
         self.socket.setsockopt_string(zmq.SUBSCRIBE, "")
-        self.name = name  # Added for debugging
 
 # WebSocket Clients
 clients = []
@@ -37,19 +36,16 @@ class DetectionWebSocket(tornado.websocket.WebSocketHandler):
         return True
 
 async def zmq_bridge_loop():
-    detection_subscriber = ZMQSubscriber("tcp://localhost:5555", "Detection")
-    lidar_subscriber = ZMQSubscriber("tcp://localhost:5556", "LiDAR")
-    imu_subscriber = ZMQSubscriber("tcp://localhost:5557", "IMU")
+    detection_subscriber = ZMQSubscriber("tcp://localhost:5555")  # Detection system
+    lidar_subscriber = ZMQSubscriber("tcp://localhost:5556")  # LiDAR system
 
     poller = zmq.asyncio.Poller()
     poller.register(detection_subscriber.socket, zmq.POLLIN)
     poller.register(lidar_subscriber.socket, zmq.POLLIN)
-    poller.register(imu_subscriber.socket, zmq.POLLIN)
 
-    # Initialize empty data structures so each stream can start independently
+    # Initialize empty data structures so either stream can start independently
     detection_data = {"detections": [], "image": None}
     lidar_data = {"points": [], "scan_frequency": 0, "timestamp": 0}
-    imu_data = {"roll": 0, "pitch": 0, "yaw": 0}  # Default IMU values
 
     while True:
         try:
@@ -59,35 +55,28 @@ async def zmq_bridge_loop():
             for socket, event in events:
                 if socket == detection_subscriber.socket and event == zmq.POLLIN:
                     detection_msg = await detection_subscriber.socket.recv()
-                    detection_data = json.loads(detection_msg.decode('utf-8'))
-                    #print("[Bridge] Received Detection Data")
+                    detection_data = json.loads(detection_msg.decode('utf-8'))  # Update detection data
+                    #print("Received Detection Data")
 
                 if socket == lidar_subscriber.socket and event == zmq.POLLIN:
                     lidar_msg = await lidar_subscriber.socket.recv()
-                    lidar_data = json.loads(lidar_msg.decode('utf-8'))
-                    #print("[Bridge] Received LiDAR Data")
-
-                if socket == imu_subscriber.socket and event == zmq.POLLIN:
-                    imu_msg = await imu_subscriber.socket.recv()
-                    imu_data = json.loads(imu_msg.decode('utf-8'))
-                    #print("[Bridge] Received IMU Data")
+                    lidar_data = json.loads(lidar_msg.decode('utf-8'))  # Update LiDAR data
+                    #print("Received LiDAR Data")
 
             # Always send the latest available data, even if one stream hasn't started
             combined_msg = {
                 "detection": detection_data,
-                "lidar": lidar_data,
-                "imu": imu_data
+                "lidar": lidar_data
             }
 
-            # Send data to WebSocket clients
             for client in clients:
                 try:
                     client.write_message(json.dumps(combined_msg))
                 except Exception as e:
-                    print("[Bridge] Error sending WebSocket message:", e)
+                    print("Error sending WebSocket message:", e)
 
         except Exception as e:
-            print("[Bridge] Error in bridge loop:", e)
+            print("Error in bridge loop:", e)
 
         await asyncio.sleep(0.01)  # Prevent high CPU usage
 
@@ -100,6 +89,6 @@ def make_app():
 if __name__ == "__main__":
     app = make_app()
     app.listen(8080)
-    print("[Bridge] WebSocket server started on port 8080.")
+    print("WebSocket server started on port 8080.")
     asyncio.ensure_future(zmq_bridge_loop())
     tornado.ioloop.IOLoop.current().start()
